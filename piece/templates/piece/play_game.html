@@ -1,0 +1,453 @@
+<html>
+<head>
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+	<title>Play online Court Piece</title>
+	<style>
+		.card:hover{
+			aplha: 0.8;
+			-ms-transform: scale(1.2,1.2); /* IE 9 */
+			-webkit-transform: scale(1.2,1.2); /* Safari */
+			transform: scale(1.2,1.2);
+		}
+	</style>
+</head>
+<body>
+<input style='visibility:hidden;display:none' id="roomId" type="text" value="{{roomId}}"></input>
+<input style='visibility:hidden;display:none' id="pId" type="text" value="-1"></input>
+<input style='visibility:hidden;display:none' id="phase" type="text" value="0"></input>
+<input style='visibility:hidden;display:none' id="msg_start" type="text" value="1"></input>
+<input style='visibility:hidden;display:none' id="sender" type="text" value=""></input>
+<input style='visibility:hidden;display:none' id="turn2" type="text" value=""></input>
+
+<h5 id="t1score"></h5>
+<h5 id="t2score"></h5>
+<h5 id="trumpSuite"></h5>
+<h5 id="turn"></h5>
+<script>
+	/*
+	#CLUB = 1
+	#SPADE = 2
+	#DIAMOND = 3
+	#HEART = 4
+	*/
+	
+	var firstFlag = false;
+	var it;
+	var it2;
+	$(document).ready(function() {
+		getGameStatus();
+		it = setInterval(getGameStatus, 8000);
+	});
+	
+	var type1 = "<form id='myForm'>"; 
+	type1 += "<input type='radio' name='position' value='1'><div id='p1Name' style='width:50%;display:block;color:white;background:blue;'>";
+	type1 += "</div></input><br>";
+	type1 += "<input type='radio' name='position' value='2'><div id='p2Name' style='display:block;color:white;background:red;'>";
+	type1 += "</div></input><br>";
+	type1 += "<input type='radio' name='position' value='3'><div id='p3Name' style='display:block;color:white;background:green;'>";
+	type1 += "</div></input><br>";
+	type1 += "<input type='radio' name='position' value='4'><div id='p4Name' style='display:block;color:white;background:orange;'>";
+	type1 += "</div></input><br>";
+	type1 += "<input type='text' id='player_name' placeholder='Enter your name here'></input></form>";
+	type1 += "<input type='button' id='join' value='Join room' onClick='selectPos()'></input>";
+
+	var type2 = "";
+	type2 += "<div id='pl1Name' style='width:50%;display:block;color:white;background:blue;'>";
+	type2 += "</div><br>";
+	type2 += "<div id='pl2Name' style='display:block;color:white;background:red;'>";
+	type2 += "</div><br>";
+	type2 += "<div id='pl3Name' style='display:block;color:white;background:green;'>";
+	type2 += "</div><br>";
+	type2 += "<div id='pl4Name' style='display:block;color:white;background:orange;'>";
+	type2 += "</div><br>";
+	type2 += "<h3>Waiting for other players to join</h3>"
+	
+	var type3 = "<form id='myForm'>";
+	type3 += "<input type='radio' name='suite' value='1'>Club<br></input>";
+	type3 += "<input type='radio' name='suite' value='2'>Spade<br></input>";
+	type3 += "<input type='radio' name='suite' value='3'>Diamond<br></input>";
+	type3 += "<input type='radio' name='suite' value='4'>Heart<br></input></form>";
+	type3 += "<input type='button' id='selectTrump' value='Select Trump' onClick='selectTrump()'></input>";
+	type3 += "<h3>Your cards are:</h3><div id='tCards'></div>"; 
+	
+	var type4 = "";
+	
+	function selectTrump() {
+		$("#selectTrump").attr('disabled', true);
+		var tSuite = $('input[name=suite]:checked', '#myForm').val();
+		console.log("Suite:");
+		console.log(tSuite);
+		$.ajax({
+			url:'/courtPiece/piece/setTrump/', 
+			data: ({ roomId: $('#roomId').val(), trumpId: tSuite }),
+			method:'POST',
+			success: function(data)
+			{
+				$("#selectTrump").attr('disabled', false);
+				console.log("Trump set.");
+				window.clearInterval(it);
+				getGameStatus();
+				it = setInterval(getGameStatus, 6000);				
+			},
+			error: function(data)
+			{
+				$("#selectTrump").attr('disabled', false);
+			},
+		});
+	}
+	
+	function selectPos() {
+		//window.clearInterval(it);
+		var pos = $('input[name=position]:checked', '#myForm').val();
+		console.log("Position: ");
+		$("input[type=radio]").attr('disabled', true);
+		$("#join").attr('disabled', true);
+		console.log(pos);
+		$.ajax({
+			url:'/courtPiece/piece/selectPosition/', 
+			data: ({ roomId: $('#roomId').val(), position: pos, player_name: $("#player_name").val() }),
+			method:'POST',
+			dataType:'json',
+			success: function(data)
+			{
+				console.log("Position set.");
+				$('#pId').val(data.pId);
+				getGameStatus();
+				//it = setInterval(getGameStatus, 8000);
+			},
+			error: function(data)
+			{
+				$("#join").attr('disabled', false);
+			}
+		});	
+	}
+	
+	function getGameStatus() {
+		//window.clearInterval(it);
+		$.ajax({
+			url:'/courtPiece/piece/getGameStatus/', 
+			data: ({ roomId: $('#roomId').val(), pId: $("#pId").val(), message_start: $("#msg_start").val() }),
+			method:'POST',
+			dataType:'json',
+			success: function(data)
+			{
+				//console.log("success");
+				//it = setInterval(getGameStatus, 8000);
+				console.log(data);
+				phase = data.phase;
+				if (phase == 0) {
+					$("#sendMsg").attr('disabled', true);
+					console.log("We are in l1");
+					console.log(data.pId);
+					if (data.pId == -1) {
+						// Display choose position
+						console.log("We are in l2");
+						$('#area').html("<h3>Choose Position</h3>" + type1);
+						$('#p1Name').html("<h3>Position 1</h3>"+data.p1);
+						$('#p2Name').html("<h3>Position 2</h3>"+data.p2);
+						$('#p3Name').html("<h3>Position 3</h3>"+data.p3);
+						$('#p4Name').html("<h3>Position 4</h3>"+data.p4);
+						$('#pId').val(data.pId);
+						$('#roomId').val(data.roomId);
+						$('#phase').val(data.phase);
+						
+						if (data.pId == 1) {
+							$('#sender').val(data.p1);
+						}
+						else if (data.pId == 2) {
+							$('#sender').val(data.p2);
+						}
+						else if (data.pId == 3) {
+							$('#sender').val(data.p3);
+						}
+						else if (data.pId == 4) {
+							$('#sender').val(data.p4);
+						}
+					}
+					else {
+						$('#area').html("<h3>Game Status</h3>" + type2);
+						$('#pl1Name').html("<h3>Position 1</h3>"+data.p1);
+						$('#pl2Name').html("<h3>Position 2</h3>"+data.p2);
+						$('#pl3Name').html("<h3>Position 3</h3>"+data.p3);
+						$('#pl4Name').html("<h3>Position 4</h3>"+data.p4);
+						$('#pId').val(data.pId);
+						$('#roomId').val(data.roomId);
+						$('#phase').val(data.phase);
+						
+						if (data.pId == 1) {
+							$('#sender').val(data.p1);
+						}
+						else if (data.pId == 2) {
+							$('#sender').val(data.p2);
+						}
+						else if (data.pId == 3) {
+							$('#sender').val(data.p3);
+						}
+						else if (data.pId == 4) {
+							$('#sender').val(data.p4);
+						}
+					}
+				}
+				else if (phase == 1) {
+					// has to choose the trump here
+					$("#sendMsg").attr('disabled', true);
+					firstFlag = false;
+					if (data.trump == data.pId) {
+						$('#area').html("<center><h3>Select the trump</h3><hr width='50%'></center>" + type3);
+						
+						extra = "";
+						var cards;
+						if (data.pId == 1) {
+							cards = data.p1cards.split(',');
+						}
+						else if (data.pId == 2) {
+							cards = data.p2cards.split(',');
+						}
+						else if (data.pId == 3) {
+							cards = data.p3cards.split(',');
+						}
+						else if (data.pId == 4) {
+							cards = data.p4cards.split(',');
+						}
+						
+						for (i=0;i<5;i++) {
+							extra += "<div style='float:left'>" + generateCard(cards[i], "") + "</div>";
+						}
+						$('#tCards').html(extra);
+					}
+					else {
+						$('#area').html("<center><h3>Waiting for trump to be selected</h3><hr width='50%'></center>");
+					}
+				}
+				else if (phase >= 2) {
+					type4 = "<div id='card1' style='float:left'></div><div id='card2' style='float:left'></div>";
+					type4 += "<div id='card3' style='float:left'></div><div id='card4' style='float:left'></div>";
+					type4 += "<br><br><br><br><center><h3 style='float:none'>Your cards<br><br><br></h3><hr width='50%'></center>";
+					$("#sendMsg").attr('disabled', false);
+					
+					var cards = [];
+					var c2;
+					if (data.pId == 1) {
+						c2 = data.p1cards.split(',');
+					}
+					else if (data.pId == 2) {
+						c2 = data.p2cards.split(',');
+					}
+					else if (data.pId == 3) {
+						c2 = data.p3cards.split(',');
+					}
+					else if (data.pId == 4) {
+						c2 = data.p4cards.split(',');
+					}
+					
+					for (i = 0; i < c2.length-1; i++) {
+						cards.push(parseInt(c2[i]));
+					}
+					
+					cards.sort();
+					extra = "";
+					if (firstFlag == false) {
+						for (i = 0; i < cards.length; i++) {
+						    extra += "<div><div class='card' id='" + cards[i] + "' style='float:left' onclick='throwCard(this.id)'>" + generateCard(cards[i], "") + "</div></div>";
+						}
+					}
+					
+					$('#area').html("<h3>Game Status</h3>" + type4);
+					if (firstFlag == false) {
+						$('#cardArea').html(extra);
+						firstFlag = true;
+					}
+					$("#card1").html(generateCard(data.card1, data.p1));
+					$("#card2").html(generateCard(data.card2, data.p2));
+					$("#card3").html(generateCard(data.card3, data.p3));
+					$("#card4").html(generateCard(data.card4, data.p4));
+					$('#phase').val(data.phase);
+					$("#turn2").val(data.turn);
+					
+					if (data.pId == 1 && data.status == 4) {
+						it2 = setInterval(newRound, 5000);
+					}
+					
+					$("#t1score").html(data.p1 + " and " + data.p3 + " : " + data.t1score);
+					$("#t2score").html(data.p2 + " and " + data.p4 + " : " + data.t2score);
+					$("#trumpSuite").html("Trump Suite : " + getSuite(data.trumpSuite));
+					$("#turn").html("Turn : " + getTurn(data.turn, data.p1, data.p2, data.p3, data.p4));
+					
+					msgData = "";
+					for (i=0; i<data.messages.length; i++) {
+						msgData += getMsgHtml(data.messages[i]);
+					}
+					
+					console.log(msgData);
+					$('#msg_start').val(data.message_start);
+					
+					prevVal = $('#msgArea').html();
+					$('#msgArea').html(prevVal + msgData);					
+					$('#pId').val(data.pId);
+					$('#roomId').val(data.roomId);
+					$('#phase').val(data.phase);
+					
+					if (data.pId == 1) {
+						$('#sender').val(data.p1);
+					}
+					else if (data.pId == 2) {
+						$('#sender').val(data.p2);
+					}
+					else if (data.pId == 3) {
+						$('#sender').val(data.p3);
+					}
+					else if (data.pId == 4) {
+						$('#sender').val(data.p4);
+					}
+					$("#msgArea").scrollTop($("#msgArea").height()+10000);
+				}
+			},
+		});
+	}
+	
+	function getTurn(pId, p1, p2, p3, p4) {
+		if (pId == 1) {
+			return p1;
+		}
+		if (pId == 2) {
+			return p2;
+		}
+		if (pId == 3) {
+			return p3;
+		}
+		if (pId == 4) {
+			return p4;
+		}
+	}
+	
+	function getSuite(suiteId) {
+		if (suiteId == 0) {
+			return "Club";
+		}
+		else if (suiteId == 1) {
+			return "Spade";
+		}
+		else if (suiteId == 2) {
+			return "Diamond";
+		}
+		else if (suiteId == 3	) {
+			return "Heart";
+		}
+	}
+	function newRound() {
+		window.clearInterval(it2);
+		$.ajax({
+			url:'/courtPiece/piece/resetState/', 
+			data: ({ roomId: $('#roomId').val() }),
+			method:'POST',
+			dataType:'json',
+			success: function(data)
+			{
+				console.log(data)
+			}
+		});
+	}
+	
+	function throwCard(cardNum) {
+		//alert(cardId);
+		if ($("#pId").val() == $("#turn2").val()) {
+			$.ajax({
+				url:'/courtPiece/piece/throwCard/', 
+				data: ({ roomId: $('#roomId').val(), pId: $("#pId").val(), cardId: cardNum }),
+				method:'POST',
+				success: function(data)
+				{
+					if (data == "Success") {
+						cId = "#"+String(cardNum);
+						$(cId).css("visibility", 'hidden');
+						console.log("card Put");
+						//alert("Card Put");
+					}
+					else {
+						alert("Card could not be Put");
+					}
+				},
+			});
+		}
+		else {
+			alert("Not your turn");
+		}
+	}
+	
+	function generateCard(cardId, pl_name) {
+		var cardStr = "";
+		var imgSrc = "";
+		var cardVal = "";
+		
+		if (cardId == -1) {
+			console.log("-1 hai");
+			cardStr = "<div style='padding:10px;width:150px;border:2px solid black;'><p align='right'>" + cardVal +"</p>";
+			cardStr += "<p align='left'>" + pl_name + "</p></div>";
+			return cardStr;	
+		}
+		
+		if (cardId % 13 == 12) {
+			cardVal = 'A';
+		}
+		else if (cardId % 13 == 11) {
+			cardVal = 'K';
+		}
+		else if (cardId % 13 == 10) {
+			cardVal = 'Q';
+		}
+		else if (cardId % 13 == 9) {
+			cardVal = 'J';
+		}
+		else {
+			cardVal = String((cardId % 13) + 2);
+		}
+		
+		imgSrc = "/courtPiece/static/" + String(Math.floor(cardId / 13) + 1) + ".png";
+		cardStr = "<div style='margin:10px;padding:10px;width:150px;border:2px solid black;'><p align='right'>" + cardVal +"</p>";
+		cardStr += "<center><img src='" + imgSrc + "' height='40px' width='40px'></img></center>";
+		cardStr += "<p align='left'>" + pl_name + "</p></div>";
+		
+		return cardStr; 
+	}
+	
+	function getMsgHtml(msg) {
+		str = "<div style='color:black;margin:5px;padding:2px;border:1px solid black;'>" + msg + "</div>";
+		return str;
+	}
+	
+	function sendMsg() {
+		$("#sendMsg").attr('disabled', true);
+		var msg = $("#newMsg").val();
+		$.ajax({
+			url:'/courtPiece/piece/newMessage/', 
+			data: ({ roomId: $('#roomId').val(), pId: $('#pId').val(), msg_text: msg }),
+			method:'POST',
+			success: function(data)
+			{
+				$("#sendMsg").attr('disabled', false);
+				console.log(data)
+			}
+		});
+	}
+		
+</script>
+
+<div id="area">
+</div>
+<div>
+<div id="cardArea" width="50%">
+</div>
+<div width="50%">
+	<div id="msgArea" style='height:200px;overflow:scroll'>
+	</div>
+	<div>
+		<center>
+		<input type="text" id="newMsg" placeholder="Group Chat"></input>
+		<input type="button" id="sendMsg" value="Send" onclick="sendMsg()"></input>
+		</center>
+	</div>
+</div>
+</div>
+
+</body>
+</html

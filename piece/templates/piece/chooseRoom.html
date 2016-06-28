@@ -1,0 +1,30 @@
+<html>
+	<head>
+		<title>Play online Court Piece</title>
+	</head>
+	<body>
+	<center>
+		<h2> Online Court Piece </h2>
+		<hr width="50%">
+	</center>
+	<h3> Choose an existing room </h3>
+	<h5> A room consists of 4 players </h5>
+	<hr>
+	<form action="/piece/joinRoom/" method="POST">
+
+		{% for roomId in Room_ids %}
+			<input type="radio" name="roomId" value="{{roomId}}"> {{roomId}} <br>
+		{% endfor %}
+		<br>
+		<input type="submit" value="Join Room"></input>
+	<br><br>
+	<h3> <center>OR</center><br>Create New Room </h3>
+	<hr>
+	</form>
+		<form action="/piece/newRoom/" method="POST">
+		<input type="text" name="roomId" placeholder="Enter your room name here" required>
+		<br>
+		<input type="submit" value="Create Room"></input>
+		
+	</form>
+</html>	
